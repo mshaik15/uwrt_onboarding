@@ -1,6 +1,7 @@
 #include <functional>
 #include <stdexcept>
 #include <thread>
+#include <chrono>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
@@ -30,6 +31,7 @@ static constexpr char KEYCODE_Q = 0x71;
 static constexpr char KEYCODE_R = 0x72;
 static constexpr char KEYCODE_T = 0x74;
 static constexpr char KEYCODE_V = 0x76;
+static constexpr char KEYCODE_P = 0x70;
 
 bool running = true;
 
@@ -208,6 +210,7 @@ public:
     puts("Use arrow keys to move the turtle.");
     puts("Use G|B|V|C|D|E|R|T keys to rotate to absolute orientations. 'F' to cancel a rotation.");
     puts("'Q' to quit.");
+    puts("Press lowercase 'p' to draw a shape");
 
     while (running)
     {
@@ -285,6 +288,10 @@ public:
         RCLCPP_DEBUG(nh_->get_logger(), "quit");
         running = false;
         break;
+      
+      case KEYCODE_P:
+        drawCustom();
+        break;
       default:
         // This can happen if the read returned when there was no data, or
         // another key was pressed.  In these cases, just silently ignore the
@@ -305,6 +312,59 @@ public:
   }
 
 private:
+  bool moveFor(double linear, double angular, double seconds)
+  {
+    geometry_msgs::msg::Twist command;
+    command.linear.x = linear;
+    command.angular.z = angular;
+
+    const auto start = std::chrono::steady_clock::now();
+    rclcpp::WallRate rate(20.0);
+
+    while (running && rclcpp::ok()){
+      const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+      if (elapsed >= seconds){
+        break; // break case
+      }
+
+      twist_pub_ ->publish(command);
+      rate.sleep();
+    }
+    if (rclcpp::ok()){
+      twist_pub_ ->publish(geometry_msgs::msg::Twist{});
+    }
+
+    return running && rclcpp::ok();
+  }
+
+  void drawCustom()
+  {
+    // constexpr double half_pi = 1.5707963267948966;
+    constexpr double turn_angle = 2.5132741228718345; // 144 deg in radians
+    puts("drawing");
+
+    // for (int side=0; side < 4; ++side){
+    //   if (!moveFor(1.0, 0.0, 2.0)){
+    //     return;
+    //   }
+
+    //   if (!moveFor(0.0, 1.0, half_pi)){
+    //     return;
+    //   }
+    // }
+
+    for (int side = 0; side < 5; ++side){
+      if(!moveFor(1.0, 0.0, 3.0)){
+        return;
+      }
+
+      if(!moveFor(0.0, 1.0, turn_angle)){
+        return;
+      }
+    }
+    puts("Finished. Use the arrow keys to move.");
+  }
+
   void spin()
   {
     rclcpp::spin(nh_);
